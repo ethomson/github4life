@@ -1,0 +1,19 @@
+{
+  "name": "githublife",
+  "version": "1.0.0",
+  "description": "dat github lyfe",
+  "main": "index.js",
+  "scripts": {
+    "start": "node life.js"
+  },
+  "author": "Edward Thomson <ethomson@edwardthomson.com>",
+  "license": "MIT",
+  "repository": "https://github.com/ethomson/github4life",
+  "homepage": "https://github.com/ethomson/github4life",
+  "dependencies": {
+    "contributions": "^0.1.0",
+    "dat-life": "^0.1.0",
+    "express": "^5.0.0-alpha.8",
+    "gifencoder": "^2.0.1"
+  }
+}
