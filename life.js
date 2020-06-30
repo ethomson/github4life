@@ -123,7 +123,7 @@ app.get('/', async function(req, res) {
     res.sendStatus(302);
 });
 
-app.get('/:username', async function(req, res) {
+app.get('/:username.gif', async function(req, res) {
     let contributions;
     let cache = false;
 
@@ -174,6 +174,29 @@ app.get('/:username', async function(req, res) {
         frames: cache ? 20 : 2147483647,
         delay: cache ? 0 : 1000,
     });
+});
+
+app.get('/:username', async function(req, res) {
+    res.send(`<html>
+<head>
+<title>GitHub 4 Life</title>
+</head>
+<body style="font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji;">
+<div style="width: 718px; margin: auto; padding: 0;">
+<h1>GitHub 4 Life</h1>
+
+<p>
+A four-color game of life based on your GitHub contribution graph.
+</p>
+
+<h3 style="margin: 0; padding: 0;">${req.params.username}</h3>
+</div>
+
+<div style="width: 990px; margin: auto;">
+<img src="/${req.params.username}.gif" style="width: 854px; height: 112px; margin: 0 0 0 136px; padding: 0;">
+</div>
+</body>
+</html>`);
 });
 
 app.listen(process.env.PORT || 8080);
