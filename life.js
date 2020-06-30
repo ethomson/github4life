@@ -31,6 +31,8 @@ function drawGraph(args) {
     const context = args.context;
     const encoder = args.encoder;
     const res = args.response;
+    const delay = args.delay;
+    const frames = args.frames;
 
     const days = contributions.getDays();
     const dimensions = life.getWidth() * life.getHeight();
@@ -93,7 +95,16 @@ function drawGraph(args) {
     encoder.addFrame(context);
 
     life.next();
-    setTimeout(drawGraph, 1000, args);
+
+    if (--args.frames) {
+        if (delay)
+            setTimeout(drawGraph, delay, args);
+        else
+            drawGraph(args);
+    }
+    else {
+        encoder.finish();
+    }
 }
 
 function fillGraph(life, contributions) {
@@ -114,6 +125,19 @@ app.get('/', async function(req, res) {
 
 app.get('/:username', async function(req, res) {
     let contributions;
+    let cache = false;
+
+    // Generally we want to deliver frames forever, so for interactive
+    // user agents we don't put a delay into the gif itself, we just
+    // send new frames every 1000ms.  For caching services, though,
+    // we want to deliver a set number of frames, with the gif's frame
+    // delay set to 1000ms.  We want to do this immediately so that the
+    // request doesn't time out.
+    if (req.headers['user-agent'].match(/^github-camo/)) {
+        cache = true;
+    }
+
+    console.log(`Request from ${req.headers['user-agent']}: caching mode: ${cache}`);
 
     try {
         contributions = await Contributions.forUser(req.params.username);
@@ -128,7 +152,7 @@ app.get('/:username', async function(req, res) {
 
     encoder.start();
     encoder.setRepeat(-1);
-    encoder.setDelay(1);
+    encoder.setDelay(cache ? 1000 : 0);
     encoder.setQuality(15);
 
     const canvas = createCanvas(854 * scaling, 112 * scaling);
@@ -146,7 +170,9 @@ app.get('/:username', async function(req, res) {
         life: life,
         contributions: contributions,
         encoder: encoder,
-        context: context
+        context: context,
+        frames: cache ? 20 : 2147483647,
+        delay: cache ? 0 : 1000,
     });
 });
 
