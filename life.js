@@ -6,6 +6,11 @@ const { createCanvas } = require('canvas');
 const { Life } = require('dat-life');
 const { Contributions } = require('contributions');
 
+const contributionCache = {
+    date: undefined,
+    users: { }
+};
+
 const app = express();
 
 const background = [ 255, 255, 255 ];
@@ -118,14 +123,48 @@ function fillGraph(life, contributions) {
     }
 }
 
+function getDate() {
+    const today = new Date();
+
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+    const day = today.getDate();
+
+    return year + '-' +
+        (month < 10) ? '0' : '' + month +
+        (day < 10) ? '0' : '' + day;
+}
+
+async function getContributions(username) {
+    const date = getDate();
+
+    if (contributionCache.date !== date) {
+        console.log(`Contribution cache is from ${contributionCache.date ? contributionCache.date : '(never)'}, invalidating`);
+
+        contributionCache.date = date;
+        contributionCache.users = { };
+    }
+
+    if (contributionCache.users[username]) {
+        console.log(`Using cached contributions data for ${username}`);
+        return contributionCache.users[username];
+    }
+
+    const contributions = await Contributions.forUser(username);
+
+    console.log(`Saving contributions data for ${username}`);
+    contributionCache.users[username] = contributions;
+
+    return contributions;
+}
+
 app.get('/', async function(req, res) {
     res.append('Location', 'https://github.com/ethomson/github4life');
     res.sendStatus(302);
 });
 
 app.get('/:username.gif', async function(req, res) {
-    let contributions;
-    let cache = false;
+    let camo = false;
 
     // Generally we want to deliver frames forever, so for interactive
     // user agents we don't put a delay into the gif itself, we just
@@ -134,15 +173,21 @@ app.get('/:username.gif', async function(req, res) {
     // delay set to 1000ms.  We want to do this immediately so that the
     // request doesn't time out.
     if (req.headers['user-agent'].match(/^github-camo/)) {
-        cache = true;
+        camo = true;
     }
 
-    console.log(`Request from ${req.headers['user-agent']}: caching mode: ${cache}`);
+    if (req.query.camo === 'true') {
+        camo = true;
+    }
 
+    console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}`);
+
+    let contributions;
     try {
-        contributions = await Contributions.forUser(req.params.username);
+        contributions = await getContributions(req.params.username);
     }
     catch (err) {
+        console.error(`Could not get contribution graph for ${req.params.username}: ${err}`);
         res.sendStatus(404);
         return;
     }
@@ -152,7 +197,7 @@ app.get('/:username.gif', async function(req, res) {
 
     encoder.start();
     encoder.setRepeat(-1);
-    encoder.setDelay(cache ? 1000 : 0);
+    encoder.setDelay(camo ? 1000 : 0);
     encoder.setQuality(15);
 
     const canvas = createCanvas(854 * scaling, 112 * scaling);
@@ -171,8 +216,8 @@ app.get('/:username.gif', async function(req, res) {
         contributions: contributions,
         encoder: encoder,
         context: context,
-        frames: cache ? 20 : 2147483647,
-        delay: cache ? 0 : 1000,
+        frames: camo ? 100 : 2147483647,
+        delay: camo ? 0 : 1000
     });
 });
 
