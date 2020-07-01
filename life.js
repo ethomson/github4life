@@ -123,6 +123,9 @@ app.get('/:username', async function(req, res) {
         return;
     }
 
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Pragma', 'no-cache');
+
     const encoder = new GifEncoder(854 * scaling, 112 * scaling);
     encoder.createReadStream().pipe(res);
 
