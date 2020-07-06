@@ -193,6 +193,7 @@ app.get('/', async function(req, res) {
 
 app.get('/:username.gif', async function(req, res) {
     let camo = false;
+    let seed = false;
 
     // Generally we want to deliver frames forever, so for interactive
     // user agents we don't put a delay into the gif itself, we just
@@ -206,6 +207,11 @@ app.get('/:username.gif', async function(req, res) {
 
     if (req.query.camo === 'true') {
         camo = true;
+    }
+
+    if (req.query.seed === 'true') {
+        camo = true;
+        seed = true;
     }
 
     console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}`);
@@ -256,6 +262,12 @@ app.get('/:username.gif', async function(req, res) {
 
     fillGraph(life, contributions);
 
+    let frames = camo ? 50 : 2147483647;
+
+    if (seed) {
+        frames = 250;
+    }
+
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Pragma', 'no-cache');
     res.type('gif');
@@ -265,12 +277,14 @@ app.get('/:username.gif', async function(req, res) {
         contributions: contributions,
         encoder: encoder,
         context: context,
-        frames: camo ? 100 : 2147483647,
+        frames: frames,
         delay: camo ? 0 : 1000
     });
 });
 
 app.get('/:username', async function(req, res) {
+    const params = req.query.camo === 'true' ? '?camo=true' : '';
+
     res.send(`<html>
 <head>
 <title>GitHub 4 Life</title>
@@ -287,7 +301,7 @@ A four-color game of life based on your GitHub contribution graph.
 </div>
 
 <div style="width: 990px; margin: auto;">
-<img src="/${req.params.username}.gif" style="width: 854px; height: 112px; margin: 0 0 0 136px; padding: 0;">
+<img src="/${req.params.username}.gif${params}" style="width: 854px; height: 112px; margin: 0 0 0 136px; padding: 0;">
 </div>
 
 <div style="width: 718px; margin: auto; padding: 0;">
