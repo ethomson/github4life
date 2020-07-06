@@ -214,7 +214,12 @@ app.get('/:username.gif', async function(req, res) {
         seed = true;
     }
 
-    console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}`);
+    if (req.query.cachebust === 'true') {
+        contributionCache.users[req.params.username] = undefined;
+        imageCache.users[req.params.username] = undefined;
+    }
+
+    console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}, seed mode: ${seed}, cache bust mode: ${req.query.cachebust}`);
 
     if (camo && (image = getCachedImage(req.params.username))) {
         console.log(`Using cached image for ${req.params.username}`);
