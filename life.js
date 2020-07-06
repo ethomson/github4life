@@ -11,6 +11,11 @@ const contributionCache = {
     users: { }
 };
 
+const imageCache = {
+    date: undefined,
+    users: { }
+};
+
 const app = express();
 
 const background = [ 255, 255, 255 ];
@@ -135,6 +140,29 @@ function getDate() {
         (day < 10) ? '0' : '' + day;
 }
 
+function getCachedImage(username) {
+    const date = getDate();
+
+    if (imageCache.date !== date) {
+        console.log(`Image cache is from ${imageCache.date ? imageCache.date : '(never)'}, invalidating`);
+
+        imageCache.date = date;
+        imageCache.users = { };
+    }
+
+    console.log(imageCache);
+
+    if (imageCache.users[username]) {
+        console.log(`Using cached image data for ${username}`);
+        return imageCache.users[username];
+    }
+}
+
+function saveCachedImage(username, data) {
+    console.log(`Saving cached image data for ${username}`);
+    imageCache.users[username] = data;
+}
+
 async function getContributions(username) {
     const date = getDate();
 
@@ -182,6 +210,18 @@ app.get('/:username.gif', async function(req, res) {
 
     console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}`);
 
+    if (camo && (image = getCachedImage(req.params.username))) {
+        console.log(`Using cached image for ${req.params.username}`);
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Pragma', 'no-cache');
+        res.type('gif');
+        res.send(image);
+        return;
+    }
+    else if (camo) {
+        console.log(`No cached image for ${req.params.username}`);
+    }
+
     let contributions;
     try {
         contributions = await getContributions(req.params.username);
@@ -192,16 +232,20 @@ app.get('/:username.gif', async function(req, res) {
         return;
     }
 
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Pragma', 'no-cache');
-
     const encoder = new GifEncoder(854 * scaling, 112 * scaling);
-    encoder.createReadStream().pipe(res);
+    const encoderStream = encoder.createReadStream();
+    encoderStream.pipe(res);
+
+    if (camo) {
+        let buf = Buffer.alloc(0);
+        encoderStream.on('data', function(d) { buf = Buffer.concat([buf, d]); });
+        encoderStream.on('end', function() { saveCachedImage(req.params.username, buf); });
+    }
 
     encoder.start();
     encoder.setRepeat(-1);
     encoder.setDelay(camo ? 1000 : 0);
-    encoder.setQuality(15);
+    encoder.setQuality(75);
 
     const canvas = createCanvas(854 * scaling, 112 * scaling);
     const context = canvas.getContext('2d');
@@ -212,6 +256,8 @@ app.get('/:username.gif', async function(req, res) {
 
     fillGraph(life, contributions);
 
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Pragma', 'no-cache');
     res.type('gif');
     drawGraph({
         response: res,
