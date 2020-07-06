@@ -234,11 +234,37 @@ app.get('/:username', async function(req, res) {
 A four-color game of life based on your GitHub contribution graph.
 </p>
 
-<h3 style="margin: 0; padding: 0;">${req.params.username}</h3>
+<h3 style="margin: 0 0 5px 23px; padding: 0;">${req.params.username}</h3>
 </div>
 
 <div style="width: 990px; margin: auto;">
 <img src="/${req.params.username}.gif" style="width: 854px; height: 112px; margin: 0 0 0 136px; padding: 0;">
+</div>
+
+<div style="width: 718px; margin: auto; padding: 0;">
+<h3 style="margin: 40px 0 0 0;">What's this?</h3>
+
+<p>
+This is "GitHub 4 Life" - so named because it takes a <i><b>GitHub</b></i> contribution graph and turns it into a <i><b>4</b></i> color Game of <i><b>Life</b></i>.
+</p>
+
+<p>
+The GitHub contribution graph is used as the initial state for <a href="https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life">Conway's Game of Life</a>, a popular cellular automaton that is often built by beginning software developers as an easy-to-implement but interesting piece of software.
+</p>
+
+<p>
+Conway's Game of Life only defines two initial states for cells, but there are <a href="https://conwaylife.com/ref/mniemiec/color.htm">multi-color variants</a>.  This is a variant of "Quad Life" (chosen because the GitHub contribution graph has four colors that represent the intensity of contributions for a given day): in the typical Game of Life rules, a graph with a lot of contribution would die out in the first iteration (because the cells would be overcrowded), which seems to punish those with a lot of contributions, giving them a boring Game of Life. Intead, this variant "decays" the level of contribution, so cells will fade away instead of dying immediately.
+</p>
+
+<h3>How does it work?</h3>
+
+<p>
+This uses a JavaScript library called <a href="https://npmjs.com/contribution">contribution</a> to create a data structure with a GitHub contribution graph, and uses that as the initial state for another JavaScript library called <a href="https://npmjs.com/dat-life">dat-life</a>.  The <a href="https://github.com/ethomson/github4life">github4life</a> application then renders this as an animated GIF.  It does this indefinitely; it will render the game of life on-demand - infinitely continuing to deliver you the next state as a new frame in the GIF, forever.
+</p>
+
+<p style="margin-bottom: 60px;">
+By <a href="https://github.com/ethomson">Edward Thomson</a>, 2020.
+</p>
 </div>
 </body>
 </html>`);
