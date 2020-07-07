@@ -327,7 +327,7 @@ Conway's Game of Life only defines two initial states for cells, but there are <
 <h3>How does it work?</h3>
 
 <p>
-This uses a JavaScript library called <a href="https://npmjs.com/contribution">contribution</a> to create a data structure with a GitHub contribution graph, and uses that as the initial state for another JavaScript library called <a href="https://npmjs.com/dat-life">dat-life</a>.  The <a href="https://github.com/ethomson/github4life">github4life</a> application then renders this as an animated GIF.  It does this indefinitely; it will render the game of life on-demand - infinitely continuing to deliver you the next state as a new frame in the GIF, forever.
+This uses a JavaScript library called <a href="https://npmjs.com/contributions">contributions</a> to create a data structure with a GitHub contribution graph, and uses that as the initial state for another JavaScript library called <a href="https://npmjs.com/dat-life">dat-life</a>.  The <a href="https://github.com/ethomson/github4life">github4life</a> application then renders this as an animated GIF.  It does this indefinitely; it will render the game of life on-demand - infinitely continuing to deliver you the next state as a new frame in the GIF, forever.
 </p>
 
 <p style="margin-bottom: 60px;">
