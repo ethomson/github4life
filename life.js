@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const express = require('express');
+const fastify = require('fastify');
 const GifEncoder = require('gifencoder');
 const { createCanvas } = require('canvas');
 const { Life } = require('dat-life');
@@ -16,7 +16,7 @@ const imageCache = {
     users: { }
 };
 
-const app = express();
+const app = fastify({ logger: true });
 
 const background = [ 255, 255, 255 ];
 
@@ -40,16 +40,21 @@ function drawGraph(args) {
     const contributions = args.contributions;
     const context = args.context;
     const encoder = args.encoder;
-    const res = args.response;
+    const encoderStream = args.encoderStream;
+    const request = args.request;
+    const reply = args.reply;
+    const response = args.response;
     const delay = args.delay;
     const frames = args.frames;
 
     const days = contributions.getDays();
     const dimensions = life.getWidth() * life.getHeight();
 
-    if (res.connection.destroyed) {
+    if (request.raw.closed || request.raw.destroyed || reply.raw.closed || reply.raw.destroyed || encoderStream.closed) {
         return;
     }
+
+    console.log("Drawing graph...");
 
     context.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
     context.fillRect(0, 0, context.canvas.width, context.canvas.height);
@@ -186,12 +191,29 @@ async function getContributions(username) {
     return contributions;
 }
 
-app.get('/', async function(req, res) {
-    res.append('Location', 'https://github.com/ethomson/github4life');
-    res.sendStatus(302);
+app.log.info("Setting up route for: /");
+
+app.get('/', async (request, reply) => {
+    reply.header('Location', 'https://github.com/ethomson/github4life');
+    reply.code(302);
+    reply.send(`<html><head><title>github4life</title></head><body><a href="https://github.com/ethomson/github4life">Moved here</a>.</body></html>`);
 });
 
-app.get('/:username.gif', async function(req, res) {
+app.get('/:username', async (request, reply) => {
+    if (request.params.username.endsWith(".gif")) {
+        request.params.username = request.params.username.slice(0, -4);
+        await showGif(request, reply);
+    }
+    else {
+        await showPage(request, reply);
+    }
+});
+
+app.addHook('onError', async (request, reply, error) => {
+    console.log('ERROR');
+});
+
+async function showGif(request, reply) {
     let camo = false;
     let seed = false;
 
@@ -201,56 +223,55 @@ app.get('/:username.gif', async function(req, res) {
     // we want to deliver a set number of frames, with the gif's frame
     // delay set to 1000ms.  We want to do this immediately so that the
     // request doesn't time out.
-    if (req.headers['user-agent'].match(/^github-camo/)) {
+    if (request.headers['user-agent'].match(/^github-camo/)) {
         camo = true;
     }
 
-    if (req.query.camo === 'true') {
+    if (request.query.camo === 'true') {
         camo = true;
     }
 
-    if (req.query.seed === 'true') {
+    if (request.query.seed === 'true') {
         camo = true;
         seed = true;
     }
 
-    if (req.query.cachebust === 'true') {
-        contributionCache.users[req.params.username] = undefined;
-        imageCache.users[req.params.username] = undefined;
+    if (request.query.cachebust === 'true') {
+        contributionCache.users[request.params.username] = undefined;
+        imageCache.users[request.params.username] = undefined;
     }
 
-    console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}, seed mode: ${seed}, cache bust mode: ${req.query.cachebust}`);
+    console.log(`Request from ${request.headers['user-agent']}: camo mode: ${camo}, seed mode: ${seed}, cache bust mode: ${request.query.cachebust}`);
 
-    if (camo && (image = getCachedImage(req.params.username))) {
-        console.log(`Using cached image for ${req.params.username}`);
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Pragma', 'no-cache');
-        res.type('gif');
-        res.send(image);
+    if (camo && (image = getCachedImage(request.params.username))) {
+        console.log(`Using cached image for ${request.params.username}`);
+        reply.setHeader('Cache-Control', 'no-cache');
+        reply.setHeader('Pragma', 'no-cache');
+        reply.type('gif');
+        reply.send(image);
         return;
     }
     else if (camo) {
-        console.log(`No cached image for ${req.params.username}`);
+        console.log(`No cached image for ${request.params.username}`);
     }
 
     let contributions;
     try {
-        contributions = await getContributions(req.params.username);
+        contributions = await getContributions(request.params.username);
     }
     catch (err) {
-        console.error(`Could not get contribution graph for ${req.params.username}: ${err}`);
-        res.sendStatus(404);
+        console.error(`Could not get contribution graph for ${request.params.username}: ${err}`);
+        reply.sendStatus(404);
         return;
     }
 
     const encoder = new GifEncoder(854 * scaling, 112 * scaling);
     const encoderStream = encoder.createReadStream();
-    encoderStream.pipe(res);
 
     if (camo) {
         let buf = Buffer.alloc(0);
         encoderStream.on('data', function(d) { buf = Buffer.concat([buf, d]); });
-        encoderStream.on('end', function() { saveCachedImage(req.params.username, buf); });
+        encoderStream.on('end', function() { saveCachedImage(request.params.username, buf); });
     }
 
     encoder.start();
@@ -273,24 +294,31 @@ app.get('/:username.gif', async function(req, res) {
         frames = 250;
     }
 
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Pragma', 'no-cache');
-    res.type('gif');
+    reply.header('Cache-Control', 'no-cache');
+    reply.header('Pragma', 'no-cache');
+    reply.header('Content-type', 'image/gif');
+    reply.send(encoderStream);
+    reply.then(() => { console.log("hi") }, () => { console.log("bye") });
     drawGraph({
-        response: res,
+        request: request,
+        reply: reply,
         life: life,
         contributions: contributions,
         encoder: encoder,
+        encoderStream: encoderStream,
         context: context,
         frames: frames,
         delay: camo ? 0 : 1000
     });
-});
+    console.log("DONE");
+}
 
-app.get('/:username', async function(req, res) {
-    const params = req.query.camo === 'true' ? '?camo=true' : '';
+async function showPage(request, reply) {
+    const params = request.query.camo === 'true' ? '?camo=true' : '';
 
-    res.send(`<html>
+    reply.code(200);
+    reply.header("Content-type", "text/html");
+    reply.send(`<html>
 <head>
 <title>GitHub 4 Life</title>
 </head>
@@ -302,11 +330,11 @@ app.get('/:username', async function(req, res) {
 A four-color game of life based on your GitHub contribution graph.
 </p>
 
-<h3 style="margin: 0 0 5px 23px; padding: 0;">${req.params.username}</h3>
+<h3 style="margin: 0 0 5px 23px; padding: 0;">${request.params.username}</h3>
 </div>
 
 <div style="width: 990px; margin: auto;">
-<img src="/${req.params.username}.gif${params}" style="width: 854px; height: 112px; margin: 0 0 0 136px; padding: 0;">
+<img src="/${request.params.username}.gif${params}" style="width: 854px; height: 112px; margin: 0 0 0 136px; padding: 0;">
 </div>
 
 <div style="width: 718px; margin: auto; padding: 0;">
@@ -336,6 +364,15 @@ By <a href="https://github.com/ethomson">Edward Thomson</a>, 2020.
 </div>
 </body>
 </html>`);
-});
+}
 
-app.listen(process.env.PORT || 8080);
+const start = async () => {
+    try {
+        await app.listen(process.env.PORT || 8080);
+    } catch (err) {
+        app.log.error(err)
+        process.exit(1)
+    }
+}
+
+start()
