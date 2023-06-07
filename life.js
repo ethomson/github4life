@@ -13,20 +13,33 @@ const contributionCache = {
 
 const imageCache = {
     date: undefined,
-    users: { }
+    dark: { },
+    light: { }
 };
 
 const app = express();
 
-const background = [ 255, 255, 255 ];
-
-const palette = [
-    [ 235, 237, 240 ],
-    [ 172, 230, 174 ],
-    [ 105, 192, 110 ],
-    [  84, 158,  87 ],
-    [  56, 107,  62 ]
-];
+/* light mode */
+const backgrounds = {
+  'light': [ 255, 255, 255 ],
+  'dark':  [   0,   0,   0 ]
+};
+const palettes = {
+  'light': [
+             [ 235, 237, 240 ],
+             [ 172, 230, 174 ],
+             [ 105, 192, 110 ],
+             [  84, 158,  87 ],
+             [  56, 107,  62 ]
+           ],
+  'dark':  [
+             [ 23, 27, 33 ],
+             [ 31, 67, 43 ],
+             [ 46, 107, 56 ],
+             [ 82, 164,  78 ],
+             [ 108, 208,  100 ]
+           ]
+};
 
 const scaling = 2;
 const squareSize = 10 * scaling;
@@ -43,6 +56,9 @@ function drawGraph(args) {
     const res = args.response;
     const delay = args.delay;
     const frames = args.frames;
+
+    const background = args.dark ? backgrounds.dark : backgrounds.light;
+    const palette = args.dark ? palettes.dark : palettes.light;
 
     const days = contributions.getDays();
     const dimensions = life.getWidth() * life.getHeight();
@@ -140,27 +156,36 @@ function getDate() {
         (day < 10) ? '0' : '' + day;
 }
 
-function getCachedImage(username) {
+function getCachedImage(username, dark) {
     const date = getDate();
 
     if (imageCache.date !== date) {
         console.log(`Image cache is from ${imageCache.date ? imageCache.date : '(never)'}, invalidating`);
 
         imageCache.date = date;
-        imageCache.users = { };
+        imageCache.dark = { };
+        imageCache.light = { };
     }
 
-    console.log(imageCache);
+    if (dark && imageCache.dark[username]) {
+        console.log(`Using cached (dark mode) image data for ${username}`);
+        return imageCache.dark[username];
+    }
 
-    if (imageCache.users[username]) {
-        console.log(`Using cached image data for ${username}`);
-        return imageCache.users[username];
+    if (!dark && imageCache.light[username]) {
+        console.log(`Using cached (light mode) image data for ${username}`);
+        return imageCache.light[username];
     }
 }
 
-function saveCachedImage(username, data) {
-    console.log(`Saving cached image data for ${username}`);
-    imageCache.users[username] = data;
+function saveCachedImage(username, data, dark) {
+    console.log(`Saving cached ${dark ? 'dark mode' : 'light mode'} image data for ${username}`);
+
+    if (dark) {
+      imageCache.dark[username] = data;
+    } else {
+      imageCache.light[username] = data;
+    }
 }
 
 async function getContributions(username) {
@@ -194,6 +219,7 @@ app.get('/', async function(req, res) {
 app.get('/:username.gif', async function(req, res) {
     let camo = false;
     let seed = false;
+    let dark = false;
 
     // Generally we want to deliver frames forever, so for interactive
     // user agents we don't put a delay into the gif itself, we just
@@ -214,14 +240,19 @@ app.get('/:username.gif', async function(req, res) {
         seed = true;
     }
 
+    if (req.query.dark === 'true') {
+        dark = true;
+    }
+
     if (req.query.cachebust === 'true') {
         contributionCache.users[req.params.username] = undefined;
-        imageCache.users[req.params.username] = undefined;
+        imageCache.dark[req.params.username] = undefined;
+        imageCache.light[req.params.username] = undefined;
     }
 
     console.log(`Request from ${req.headers['user-agent']}: camo mode: ${camo}, seed mode: ${seed}, cache bust mode: ${req.query.cachebust}`);
 
-    if (camo && (image = getCachedImage(req.params.username))) {
+    if (camo && (image = getCachedImage(req.params.username, dark))) {
         console.log(`Using cached image for ${req.params.username}`);
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Pragma', 'no-cache');
@@ -230,7 +261,7 @@ app.get('/:username.gif', async function(req, res) {
         return;
     }
     else if (camo) {
-        console.log(`No cached image for ${req.params.username}`);
+        console.log(`No cached ${dark ? 'dark mode' : 'light mode'} image for ${req.params.username}`);
     }
 
     let contributions;
@@ -250,7 +281,7 @@ app.get('/:username.gif', async function(req, res) {
     if (camo) {
         let buf = Buffer.alloc(0);
         encoderStream.on('data', function(d) { buf = Buffer.concat([buf, d]); });
-        encoderStream.on('end', function() { saveCachedImage(req.params.username, buf); });
+        encoderStream.on('end', function() { saveCachedImage(req.params.username, buf, dark); });
     }
 
     encoder.start();
@@ -283,7 +314,8 @@ app.get('/:username.gif', async function(req, res) {
         encoder: encoder,
         context: context,
         frames: frames,
-        delay: camo ? 0 : 1000
+        delay: camo ? 0 : 1000,
+        dark: dark
     });
 });
 
