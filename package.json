@@ -11,7 +11,7 @@
   "repository": "https://github.com/ethomson/github4life",
   "homepage": "https://github.com/ethomson/github4life",
   "dependencies": {
-    "contributions": "^0.6.0",
+    "contributions": "^0.7.0",
     "dat-life": "^0.1.0",
     "express": "^5.0.0-beta.1",
     "gifencoder": "^2.0.1"
